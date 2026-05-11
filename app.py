@@ -773,9 +773,17 @@ with tab_trade:
         st.error("The `alpaca-py` package failed to install. Check that `alpaca-py>=0.8.0` is in requirements.txt and redeploy.")
         st.stop()
 
+    def _st_secret(key):
+        try:
+            v = st.secrets.get(key, "")
+            if v: return str(v).strip()
+        except Exception:
+            pass
+        return os.getenv(key, "").strip()
+
     alpaca_ready = (
-        os.getenv("ALPACA_API_KEY", "").strip() not in ("", "your_alpaca_key_here") and
-        os.getenv("ALPACA_SECRET_KEY", "").strip() not in ("", "your_alpaca_secret_here")
+        _st_secret("ALPACA_API_KEY") not in ("", "your_alpaca_key_here") and
+        _st_secret("ALPACA_SECRET_KEY") not in ("", "your_alpaca_secret_here")
     )
 
     if not alpaca_ready:

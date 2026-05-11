@@ -8,13 +8,25 @@ from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
 _client: TradingClient | None = None
 
 
+def _get_secret(key: str) -> str:
+    """Read from st.secrets first (Streamlit Cloud), fall back to os.getenv (local)."""
+    try:
+        import streamlit as st
+        val = st.secrets.get(key, "")
+        if val:
+            return str(val).strip()
+    except Exception:
+        pass
+    return os.getenv(key, "").strip()
+
+
 def get_client() -> TradingClient:
     global _client
     if _client is None:
-        api_key = os.getenv("ALPACA_API_KEY", "")
-        secret_key = os.getenv("ALPACA_SECRET_KEY", "")
+        api_key = _get_secret("ALPACA_API_KEY")
+        secret_key = _get_secret("ALPACA_SECRET_KEY")
         if not api_key or not secret_key or "your_alpaca" in api_key:
-            raise ValueError("Alpaca API keys not configured. Add ALPACA_API_KEY and ALPACA_SECRET_KEY to your .env file.")
+            raise ValueError("Alpaca API keys not configured. Add ALPACA_API_KEY and ALPACA_SECRET_KEY to Streamlit Secrets.")
         _client = TradingClient(api_key, secret_key, paper=True)
     return _client
 
