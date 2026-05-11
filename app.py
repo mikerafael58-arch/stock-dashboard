@@ -28,44 +28,54 @@ except Exception as _trading_import_error:
 
 st.set_page_config(
     page_title="Market Intelligence Dashboard",
-    page_icon="📈",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 st.markdown("""
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
     /* ── Base ── */
-    [data-testid="stAppViewContainer"] { background: #0f1117; }
-    [data-testid="stSidebar"] { background: #161b27; border-right: 1px solid #1e2536; }
+    [data-testid="stAppViewContainer"] { background: #0b0e1a; }
+    [data-testid="stSidebar"] { background: #10131f; border-right: 1px solid #1c2033; }
     [data-testid="stHeader"] { background: transparent; }
 
-    /* ── Typography ── */
-    html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
-    h1, h2, h3 { color: #e8ecf0 !important; font-weight: 600 !important; letter-spacing: -0.02em; }
+    /* ── Global font + white text ── */
+    html, body, [class*="css"], p, span, div, label, input, textarea, select, button {
+        font-family: 'DM Sans', 'Segoe UI', sans-serif !important;
+    }
+    p, span, li { color: #ffffff !important; }
+    .stMarkdown p, .stMarkdown span, .stMarkdown li { color: #ffffff !important; }
+    [data-testid="stCaptionContainer"] p { color: #a0aec0 !important; }
+
+    /* ── Headings ── */
+    h1, h2, h3, h4 { color: #ffffff !important; font-weight: 600 !important; letter-spacing: -0.02em; }
 
     /* ── Metric cards ── */
     [data-testid="metric-container"] {
-        background: #161b27;
-        border: 1px solid #1e2536;
+        background: #10131f;
+        border: 1px solid #1c2033;
         border-radius: 10px;
         padding: 16px 20px;
     }
-    [data-testid="metric-container"] label { color: #6b7a99 !important; font-size: 0.72rem !important; text-transform: uppercase; letter-spacing: 0.08em; }
-    [data-testid="metric-container"] [data-testid="stMetricValue"] { color: #e8ecf0 !important; font-size: 1.4rem !important; font-weight: 700 !important; }
+    [data-testid="metric-container"] label { color: #a0aec0 !important; font-size: 0.72rem !important; text-transform: uppercase; letter-spacing: 0.08em; }
+    [data-testid="metric-container"] [data-testid="stMetricValue"] { color: #ffffff !important; font-size: 1.4rem !important; font-weight: 700 !important; }
+    [data-testid="metric-container"] [data-testid="stMetricDelta"] { color: #a0aec0 !important; }
 
     /* ── Tabs ── */
     [data-testid="stTabs"] button {
-        color: #6b7a99 !important;
-        font-size: 0.82rem !important;
+        color: #a0aec0 !important;
+        font-size: 0.78rem !important;
         font-weight: 500 !important;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.07em;
         border-bottom: 2px solid transparent !important;
-        padding: 8px 16px !important;
+        padding: 8px 18px !important;
+        font-family: 'DM Sans', sans-serif !important;
     }
     [data-testid="stTabs"] button[aria-selected="true"] {
-        color: #4f8ef7 !important;
+        color: #ffffff !important;
         border-bottom: 2px solid #4f8ef7 !important;
         background: transparent !important;
     }
@@ -73,102 +83,87 @@ st.markdown("""
     /* ── Buttons ── */
     [data-testid="baseButton-primary"] {
         background: #4f8ef7 !important;
-        color: #fff !important;
+        color: #ffffff !important;
         border-radius: 7px !important;
         font-weight: 600 !important;
         border: none !important;
-        letter-spacing: 0.02em;
+        font-family: 'DM Sans', sans-serif !important;
     }
     [data-testid="baseButton-secondary"] {
-        background: #1e2536 !important;
-        color: #c0cce0 !important;
-        border: 1px solid #2a3347 !important;
+        background: #1c2033 !important;
+        color: #ffffff !important;
+        border: 1px solid #2a3050 !important;
         border-radius: 7px !important;
+        font-family: 'DM Sans', sans-serif !important;
     }
 
     /* ── Inputs / selects ── */
     [data-testid="stSelectbox"] > div, [data-testid="stTextArea"] textarea,
     [data-testid="stNumberInput"] input {
-        background: #1e2536 !important;
-        border: 1px solid #2a3347 !important;
+        background: #1c2033 !important;
+        border: 1px solid #2a3050 !important;
         border-radius: 7px !important;
-        color: #c0cce0 !important;
+        color: #ffffff !important;
     }
+    [data-testid="stSelectbox"] span { color: #ffffff !important; }
+    [data-testid="stSlider"] p { color: #ffffff !important; }
 
     /* ── Dataframe ── */
-    [data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; border: 1px solid #1e2536; }
+    [data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; border: 1px solid #1c2033; }
     [data-testid="stDataFrame"] th {
-        background: #161b27 !important;
-        color: #6b7a99 !important;
-        font-size: 0.70rem !important;
+        background: #10131f !important;
+        color: #a0aec0 !important;
+        font-size: 0.69rem !important;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        border-bottom: 1px solid #1e2536 !important;
+        border-bottom: 1px solid #1c2033 !important;
         font-weight: 600 !important;
+        font-family: 'DM Sans', sans-serif !important;
     }
     [data-testid="stDataFrame"] td {
-        background: #0f1117 !important;
-        color: #c0cce0 !important;
+        background: #0b0e1a !important;
+        color: #ffffff !important;
         font-size: 0.84rem !important;
-        border-bottom: 1px solid #161b27 !important;
+        border-bottom: 1px solid #10131f !important;
+        font-family: 'DM Sans', sans-serif !important;
     }
-    [data-testid="stDataFrame"] tr:hover td { background: #161b27 !important; }
+    [data-testid="stDataFrame"] tr:hover td { background: #10131f !important; }
 
     /* ── Expander ── */
     [data-testid="stExpander"] {
-        background: #161b27 !important;
-        border: 1px solid #1e2536 !important;
+        background: #10131f !important;
+        border: 1px solid #1c2033 !important;
         border-radius: 10px !important;
     }
+    [data-testid="stExpander"] summary p { color: #ffffff !important; }
 
-    /* ── Captions & helpers ── */
+    /* ── Sidebar ── */
+    [data-testid="stSidebar"] label { color: #a0aec0 !important; font-size: 0.73rem !important; text-transform: uppercase; letter-spacing: 0.06em; }
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] span { color: #ffffff !important; }
+    [data-testid="stSidebar"] .stSlider { padding-top: 4px; }
+
+    /* ── Score / signal classes ── */
     .score-high { color: #00d4aa; font-weight: 700; }
     .score-mid  { color: #f59e0b; font-weight: 700; }
     .score-low  { color: #f43f5e; font-weight: 700; }
-
-    /* ── Stock card ── */
-    .stock-card {
-        background: #161b27;
-        border: 1px solid #1e2536;
-        border-radius: 10px;
-        padding: 16px 20px;
-        margin-bottom: 10px;
-        transition: border-color 0.2s;
-    }
-    .stock-card:hover { border-color: #4f8ef7; }
-    .ticker-label { font-size: 1.1rem; font-weight: 700; color: #e8ecf0; }
-    .company-name { font-size: 0.78rem; color: #6b7a99; margin-top: 2px; }
-    .sector-badge {
-        display: inline-block;
-        background: #1e2d47;
-        color: #4f8ef7;
-        font-size: 0.68rem;
-        font-weight: 600;
-        padding: 2px 8px;
-        border-radius: 20px;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
     .signal-buy   { color: #00d4aa; font-weight: 700; font-size: 0.82rem; }
     .signal-hold  { color: #f59e0b; font-weight: 700; font-size: 0.82rem; }
     .signal-avoid { color: #f43f5e; font-weight: 700; font-size: 0.82rem; }
-    .score-pill {
-        display: inline-block;
-        padding: 3px 10px;
-        border-radius: 20px;
-        font-size: 0.78rem;
-        font-weight: 700;
-    }
+    .score-pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; }
     .pill-green { background: rgba(0,212,170,0.12); color: #00d4aa; }
     .pill-amber { background: rgba(245,158,11,0.12); color: #f59e0b; }
     .pill-red   { background: rgba(244,63,94,0.12);  color: #f43f5e; }
+    .sector-badge {
+        display: inline-block; background: #1c2d47; color: #4f8ef7;
+        font-size: 0.68rem; font-weight: 600; padding: 2px 8px;
+        border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+
+    /* ── Alert boxes ── */
+    [data-testid="stAlert"] p { color: #ffffff !important; }
 
     /* ── Divider ── */
-    hr { border-color: #1e2536 !important; }
-
-    /* ── Sidebar labels ── */
-    [data-testid="stSidebar"] label { color: #6b7a99 !important; font-size: 0.75rem !important; text-transform: uppercase; letter-spacing: 0.06em; }
-    [data-testid="stSidebar"] .stSlider { padding-top: 4px; }
+    hr { border-color: #1c2033 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -196,10 +191,10 @@ def signal_label(score):
     if score is None:
         return "—"
     if score >= 65:
-        return "🟢 Buy"
+        return "Buy"
     if score >= 40:
-        return "🟡 Hold"
-    return "🔴 Avoid"
+        return "Hold"
+    return "Avoid"
 
 
 def score_color_class(score):
@@ -250,7 +245,7 @@ if "watchlist_text" not in st.session_state:
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.title("📈 Stock Dashboard")
+    st.title("Stock Dashboard")
     st.markdown("---")
 
     # Watchlist presets
@@ -266,7 +261,7 @@ with st.sidebar:
     st.markdown("---")
 
     # Save custom watchlist
-    with st.expander("💾 Save Current List as Preset"):
+    with st.expander("Save Current List as Preset"):
         new_name = st.text_input("Preset name")
         if st.button("Save", use_container_width=True) and new_name.strip():
             tickers_to_save = [
@@ -306,7 +301,7 @@ with st.sidebar:
     weights = (w_momentum / total_w, w_value / total_w, w_quality / total_w) if total_w > 0 else (0.35, 0.30, 0.35)
 
     st.markdown("---")
-    run = st.button("🔄 Refresh Data", use_container_width=True, type="primary")
+    run = st.button("Refresh Data", use_container_width=True, type="primary")
     st.caption("Data via Yahoo Finance · AI via Claude · Not financial advice")
 
 
@@ -364,13 +359,13 @@ triggered = check_alerts(ranked, alerts)
 if triggered:
     for alert in triggered:
         cond = "above" if alert["condition"] == "above" else "below"
-        st.warning(f"🔔 **{alert['ticker']}** is {cond} your target — Current: ${alert['price']:.2f} | Target: ${alert['target']:.2f}")
+        st.warning(f"**{alert['ticker']}** is {cond} your target — Current: ${alert['price']:.2f} | Target: ${alert['target']:.2f}")
 
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 
 tab_overview, tab_detail, tab_charts, tab_predict, tab_history, tab_backtest, tab_trade, tab_ai = st.tabs([
-    "📊 Rankings", "🔍 Stock Detail", "📉 Charts", "🔮 Predictions", "📅 History", "🧪 Backtest", "💸 Paper Trading", "🤖 AI Analysis"
+    "Rankings", "Stock Detail", "Charts", "Predictions", "History", "Backtest", "Paper Trading", "AI Analysis"
 ])
 
 
@@ -387,9 +382,9 @@ with tab_overview:
 
     sb1, sb2, sb3, sb4, sb5 = st.columns(5)
     sb1.metric("Stocks Tracked", len(ranked))
-    sb2.metric("🟢 Buy", buy_count)
-    sb3.metric("🟡 Hold", hold_count)
-    sb4.metric("🔴 Avoid", avoid_count)
+    sb2.metric("Buy", buy_count)
+    sb3.metric("Hold", hold_count)
+    sb4.metric("Avoid", avoid_count)
     sb5.metric("Avg Score", avg_comp)
 
     st.markdown("<hr>", unsafe_allow_html=True)
@@ -543,7 +538,7 @@ with tab_overview:
             with col_a:
                 st.markdown(f"**{ticker}** — Alert when {al['condition']} **${al['target']:.2f}** · Current: {current_str}")
             with col_b:
-                if st.button("✕", key=f"del_{ticker}"):
+                if st.button("X", key=f"del_{ticker}"):
                     delete_alert(ticker)
                     st.rerun()
 
@@ -605,8 +600,8 @@ with tab_detail:
         st.markdown(f"**6M Return:** {fmt_pct(bd.get('6m_return'))}")
         above50 = bd.get("above_sma50")
         above200 = bd.get("above_sma200")
-        st.markdown(f"**Above SMA50:** {'✅' if above50 else '❌' if above50 is not None else '—'}")
-        st.markdown(f"**Above SMA200:** {'✅' if above200 else '❌' if above200 is not None else '—'}")
+        st.markdown(f"**Above SMA50:** {'Yes' if above50 else 'No' if above50 is not None else '—'}")
+        st.markdown(f"**Above SMA200:** {'Yes' if above200 else 'No' if above200 is not None else '—'}")
         st.markdown(f"**RSI (14):** {fmt_val(bd.get('rsi'), 1)}")
 
     with col2:
@@ -697,7 +692,7 @@ with tab_predict:
     | **3-Year** | Earnings growth model (projected EPS × PE) | Medium — directional, assumes growth continues |
     | **5-Year** | Same model with heavier growth dampening | Lower — treat as a rough range, not a target |
     """)
-    st.caption("⚠️ All projections are estimates. Markets are unpredictable. Not financial advice.")
+    st.caption("All projections are estimates. Markets are unpredictable. Not financial advice.")
 
     st.markdown("---")
 
@@ -898,7 +893,7 @@ with tab_history:
                             f"Current {score_type}": round(curr_val, 1),
                             f"Previous {score_type}": round(prev_val, 1),
                             "Change": round(delta, 1),
-                            "Direction": "🟢 Up" if delta > 0.5 else ("🔴 Down" if delta < -0.5 else "➡️ Flat"),
+                            "Direction": "Up" if delta > 0.5 else ("Down" if delta < -0.5 else "Flat"),
                         })
                 if delta_rows:
                     delta_df = pd.DataFrame(delta_rows).sort_values("Change", ascending=False)
@@ -915,7 +910,7 @@ with tab_backtest:
     Tests whether picking the **highest momentum stocks** from your watchlist each month would have beaten the S&P 500 (SPY).
     At each month-end, it ranks all stocks by their recent price momentum, holds the top N equal-weighted for one month, then repeats.
     """)
-    st.caption("⚠️ This is a price-momentum-only backtest and doesn't account for trading costs, taxes, or slippage. Past performance does not guarantee future results.")
+    st.caption("This is a price-momentum-only backtest and doesn't account for trading costs, taxes, or slippage. Past performance does not guarantee future results.")
 
     col_bt1, col_bt2, col_bt3 = st.columns(3)
     with col_bt1:
@@ -925,7 +920,7 @@ with tab_backtest:
     with col_bt3:
         st.write("")
         st.write("")
-        run_bt = st.button("▶ Run Backtest", type="primary", use_container_width=True)
+        run_bt = st.button("Run Backtest", type="primary", use_container_width=True)
 
     if run_bt:
         with st.spinner(f"Running backtest over {bt_years} years..."):
@@ -979,7 +974,7 @@ with tab_backtest:
 # ── Tab 7: Paper Trading ──────────────────────────────────────────────────────
 
 with tab_trade:
-    st.header("💸 Paper Trading — Alpaca")
+    st.header("Paper Trading — Alpaca")
     st.caption("All trades execute in Alpaca's paper trading environment. No real money is used.")
 
     if not _trading_available:
@@ -1005,7 +1000,7 @@ with tab_trade:
         st.stop()
 
     # ── Debug info ─────────────────────────────────────────────────────────────
-    with st.expander("🔧 Debug — Key Status"):
+    with st.expander("Debug — Key Status"):
         import requests as _req
         ak = _st_secret("ALPACA_API_KEY")
         sk = _st_secret("ALPACA_SECRET_KEY")
@@ -1066,7 +1061,7 @@ with tab_trade:
         cfg["stop_loss_pct"] = st.slider("Stop loss %", -50, -1, int(cfg["stop_loss_pct"]),
                                          help="Automatically sell any position that drops below this %")
 
-    if st.button("💾 Save Strategy Config"):
+    if st.button("Save Strategy Config"):
         save_config(cfg)
         st.success("Strategy saved.")
 
@@ -1078,7 +1073,7 @@ with tab_trade:
 
     col_gen, col_info = st.columns([1, 3])
     with col_gen:
-        gen_btn = st.button("🔍 Generate Signals", type="primary", use_container_width=True)
+        gen_btn = st.button("Generate Signals", type="primary", use_container_width=True)
     with col_info:
         st.caption(f"Strategy: top {cfg['top_n']} stocks | min score {cfg['min_composite_score']} | {cfg['allocation_method'].replace('_', ' ')} | stop loss {cfg['stop_loss_pct']}%")
 
@@ -1113,7 +1108,7 @@ with tab_trade:
 
         with col_s:
             all_sells = sig["stops"] + sig["sells"]
-            st.markdown(f"#### 🔴 Sell ({len(all_sells)})")
+            st.markdown(f"#### Sell ({len(all_sells)})")
             if not all_sells:
                 st.success("Nothing to sell.")
             for s in sig["stops"]:
@@ -1122,14 +1117,14 @@ with tab_trade:
                 st.warning(f"**{s['symbol']}** {s['reason']}  \nValue: ${s['current_value']:,.2f} | P&L: {s['pl_pct']:+.1f}%")
 
         with col_b:
-            st.markdown(f"#### 🟢 Buy ({len(sig['buys'])})")
+            st.markdown(f"#### Buy ({len(sig['buys'])})")
             if not sig["buys"]:
                 st.success("Nothing to buy.")
             for b in sig["buys"]:
                 st.info(f"**{b['symbol']}** {b['reason']}  \nBuy **${b['buy_amount']:,.2f}** → target ${b['target_value']:,.2f}")
 
         with col_h:
-            st.markdown(f"#### ✅ Hold ({len(sig['holds'])})")
+            st.markdown(f"#### Hold ({len(sig['holds'])})")
             if not sig["holds"]:
                 st.caption("No positions on target yet.")
             for h in sig["holds"]:
@@ -1140,7 +1135,7 @@ with tab_trade:
         with col_ex1:
             confirmed = st.checkbox("Confirm — execute these paper trades")
         with col_ex2:
-            exec_sig_btn = st.button("▶ Execute Strategy", type="primary", disabled=not confirmed)
+            exec_sig_btn = st.button("Execute Strategy", type="primary", disabled=not confirmed)
 
         if exec_sig_btn:
             with st.spinner("Executing..."):
@@ -1151,9 +1146,9 @@ with tab_trade:
                     ok = [r for r in results if r["success"]]
                     fail = [r for r in results if not r["success"]]
                     if ok:
-                        st.success(f"✅ {len(ok)} order(s) submitted.")
+                        st.success(f"{len(ok)} order(s) submitted.")
                     for f in fail:
-                        st.error(f"❌ {f['symbol']} {f['action']} failed: {f.get('error', '')}")
+                        st.error(f"{f['symbol']} {f['action']} failed: {f.get('error', '')}")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Execution failed: {e}")
@@ -1251,7 +1246,7 @@ with tab_trade:
         st.error(f"Could not load orders: {e}")
 
     # ── Manual Order ───────────────────────────────────────────────────────────
-    with st.expander("🔧 Manual Order"):
+    with st.expander("Manual Order"):
         man_col1, man_col2, man_col3, man_col4 = st.columns(4)
         with man_col1:
             man_ticker = st.selectbox("Symbol", [s["ticker"] for s in ranked], key="man_ticker")
