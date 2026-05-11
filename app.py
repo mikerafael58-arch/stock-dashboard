@@ -276,7 +276,9 @@ with tab_overview:
 
     df = pd.DataFrame(rows)
 
-    styled = df.style.applymap(
+    _styler = df.style
+    _cell_style = getattr(_styler, "map", getattr(_styler, "applymap", None))
+    styled = _cell_style(
         _color_score, subset=["Composite", "Momentum", "Value", "Quality"]
     ).format({
         "Price": lambda v: f"${v:.2f}" if v else "—",
