@@ -17,6 +17,7 @@ from storage import (
     load_saved_watchlists, save_watchlist, delete_watchlist,
 )
 from backtest import run_backtest
+from predictions import calculate_predictions, prediction_color, confidence_badge
 
 st.set_page_config(
     page_title="Stock Ranking Dashboard",
@@ -214,8 +215,8 @@ if triggered:
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 
-tab_overview, tab_detail, tab_charts, tab_history, tab_backtest, tab_ai = st.tabs([
-    "📊 Rankings", "🔍 Stock Detail", "📉 Charts", "📅 History", "🧪 Backtest", "🤖 AI Analysis"
+tab_overview, tab_detail, tab_charts, tab_predict, tab_history, tab_backtest, tab_ai = st.tabs([
+    "📊 Rankings", "🔍 Stock Detail", "📉 Charts", "🔮 Predictions", "📅 History", "🧪 Backtest", "🤖 AI Analysis"
 ])
 
 
@@ -465,7 +466,160 @@ with tab_charts:
     st.plotly_chart(fig_bar, use_container_width=True)
 
 
-# ── Tab 4: History ─────────────────────────────────────────────────────────────
+# ── Tab 4: Predictions ────────────────────────────────────────────────────────
+
+with tab_predict:
+    st.header("Predicted Returns")
+    st.markdown("""
+    | Horizon | Source | Reliability |
+    |---------|--------|-------------|
+    | **1-Year** | Wall Street analyst consensus price targets | Higher — real forecasts from professional analysts |
+    | **3-Year** | Earnings growth model (projected EPS × PE) | Medium — directional, assumes growth continues |
+    | **5-Year** | Same model with heavier growth dampening | Lower — treat as a rough range, not a target |
+    """)
+    st.caption("⚠️ All projections are estimates. Markets are unpredictable. Not financial advice.")
+
+    st.markdown("---")
+
+    # Full watchlist predictions table
+    st.subheader("Watchlist Predictions Overview")
+
+    pred_rows = []
+    for s in ranked:
+        preds = calculate_predictions(
+            s["price_metrics"].get("current_price"),
+            s["fund_metrics"],
+        )
+        row = {
+            "Ticker": s["ticker"],
+            "Name": s["name"][:25],
+            "Price": s["price_metrics"].get("current_price"),
+            "Signal": signal_label(s["composite"]),
+            "Analyst Rec": s["fund_metrics"].get("recommendation", "—"),
+        }
+        for key, label in [("1yr", "1Y Target"), ("3yr", "3Y Return"), ("5yr", "5Y Return")]:
+            if key in preds:
+                row[label] = preds[key]["return_pct"]
+                if key == "1yr":
+                    row["1Y Price"] = preds[key]["target_price"]
+                    row["# Analysts"] = preds[key]["num_analysts"]
+            else:
+                row[label] = None
+                if key == "1yr":
+                    row["1Y Price"] = None
+                    row["# Analysts"] = None
+        pred_rows.append(row)
+
+    pred_df = pd.DataFrame(pred_rows)
+
+    def _color_return(val):
+        try:
+            v = float(val)
+        except (TypeError, ValueError):
+            return ""
+        if v >= 20:
+            return "background-color: rgba(0,200,83,0.15); color: #00c853; font-weight:600"
+        if v >= 5:
+            return "background-color: rgba(100,221,23,0.12); color: #76d275; font-weight:600"
+        if v >= -5:
+            return "background-color: rgba(255,171,0,0.12); color: #ffab00; font-weight:600"
+        if v >= -20:
+            return "background-color: rgba(255,109,0,0.12); color: #ff6d00; font-weight:600"
+        return "background-color: rgba(255,23,68,0.12); color: #ff1744; font-weight:600"
+
+    _pred_styler = pred_df.style
+    _pred_cell_style = getattr(_pred_styler, "map", getattr(_pred_styler, "applymap", None))
+    styled_pred = _pred_cell_style(
+        _color_return, subset=["1Y Target", "3Y Return", "5Y Return"]
+    ).format({
+        "Price": lambda v: f"${v:.2f}" if v else "—",
+        "1Y Price": lambda v: f"${v:.2f}" if v else "—",
+        "1Y Target": lambda v: f"{v:+.1f}%" if v is not None else "—",
+        "3Y Return": lambda v: f"{v:+.1f}%" if v is not None else "—",
+        "5Y Return": lambda v: f"{v:+.1f}%" if v is not None else "—",
+        "# Analysts": lambda v: str(int(v)) if v else "—",
+        "Analyst Rec": lambda v: v.replace("_", " ").title() if isinstance(v, str) and v != "—" else (v or "—"),
+    })
+
+    st.dataframe(styled_pred, use_container_width=True, hide_index=True, height=500)
+
+    st.markdown("---")
+
+    # Deep-dive on a single stock
+    st.subheader("Stock Deep-Dive")
+    pred_ticker = st.selectbox("Select stock", [s["ticker"] for s in ranked], key="pred_ticker")
+    pred_stock = next(s for s in ranked if s["ticker"] == pred_ticker)
+    pred_price = pred_stock["price_metrics"].get("current_price")
+    preds = calculate_predictions(pred_price, pred_stock["fund_metrics"])
+
+    if not preds:
+        st.warning(f"No prediction data available for {pred_ticker}. Yahoo Finance may not have analyst coverage for this stock.")
+    else:
+        cols = st.columns(len(preds))
+        for col, (key, p) in zip(cols, preds.items()):
+            ret = p["return_pct"]
+            color = prediction_color(ret)
+            badge = confidence_badge(p["confidence"])
+            sign = "+" if ret >= 0 else ""
+            with col:
+                st.markdown(f"### {p['label']}")
+                st.markdown(f"<h2 style='color:{color}; margin:0'>{sign}{ret:.1f}%</h2>", unsafe_allow_html=True)
+                st.markdown(f"**Target Price:** ${p['target_price']:.2f}")
+                st.markdown(f"**Annualized:** {p['annualized_return']:+.1f}%/yr")
+                st.markdown(f"**Confidence:** {badge} {p['confidence']}")
+                st.markdown(f"**Method:** {p['method']}")
+                st.caption(p["note"])
+                if p.get("high_target") and p.get("low_target"):
+                    st.markdown(f"**Range:** ${p['low_target']:.2f} — ${p['high_target']:.2f}")
+                if p.get("num_analysts"):
+                    st.markdown(f"**Analysts:** {p['num_analysts']}")
+                if p.get("recommendation"):
+                    st.markdown(f"**Consensus:** {p['recommendation']}")
+
+        st.markdown("---")
+
+        # Visual: price target range chart
+        if "1yr" in preds:
+            p1 = preds["1yr"]
+            fig_target = go.Figure()
+
+            # Current price line
+            fig_target.add_hline(y=pred_price, line_dash="solid", line_color="white", line_width=2, annotation_text=f"Current ${pred_price:.2f}", annotation_position="left")
+
+            # 1yr range bar
+            if p1.get("low_target") and p1.get("high_target"):
+                fig_target.add_trace(go.Bar(
+                    x=["1-Year Analyst Range"],
+                    y=[p1["high_target"] - p1["low_target"]],
+                    base=[p1["low_target"]],
+                    marker_color="rgba(25,118,210,0.4)",
+                    name="Analyst Range",
+                    width=0.3,
+                ))
+
+            # Mean targets as markers
+            for key, label, color in [("1yr", "1Y Mean", "#1976d2"), ("3yr", "3Y Model", "#00c853"), ("5yr", "5Y Model", "#ffab00")]:
+                if key in preds:
+                    fig_target.add_trace(go.Scatter(
+                        x=[label],
+                        y=[preds[key]["target_price"]],
+                        mode="markers+text",
+                        marker=dict(size=16, color=color, symbol="diamond"),
+                        text=[f"${preds[key]['target_price']:.0f}"],
+                        textposition="top center",
+                        name=label,
+                    ))
+
+            fig_target.update_layout(
+                title=f"{pred_ticker} — Price Targets",
+                yaxis_title="Price (USD)",
+                height=380,
+                showlegend=True,
+            )
+            st.plotly_chart(fig_target, use_container_width=True)
+
+
+# ── Tab 5: History ─────────────────────────────────────────────────────────────
 
 with tab_history:
     st.header("Score History")

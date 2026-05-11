@@ -104,4 +104,14 @@ def get_fundamental_metrics(info: dict) -> dict:
         "dividend_yield": info.get("dividendYield"),
         "market_cap": info.get("marketCap"),
         "beta": info.get("beta"),
+        # Analyst targets
+        "analyst_target_mean": info.get("targetMeanPrice"),
+        "analyst_target_high": info.get("targetHighPrice"),
+        "analyst_target_low": info.get("targetLowPrice"),
+        "analyst_target_median": info.get("targetMedianPrice"),
+        "num_analysts": info.get("numberOfAnalystOpinions"),
+        "recommendation": info.get("recommendationKey"),
+        # EPS for DCF model
+        "trailing_eps": info.get("trailingEps"),
+        "forward_eps": info.get("forwardEps"),
     }
