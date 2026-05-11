@@ -18,6 +18,8 @@ from storage import (
 )
 from backtest import run_backtest
 from predictions import calculate_predictions, prediction_color, confidence_badge
+from trading.alpaca_client import get_account, get_positions, get_recent_orders, place_market_order
+from trading.rebalancer import generate_rebalance_plan, execute_rebalance, get_performance_summary, load_trade_log
 
 st.set_page_config(
     page_title="Stock Ranking Dashboard",
@@ -215,8 +217,8 @@ if triggered:
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 
-tab_overview, tab_detail, tab_charts, tab_predict, tab_history, tab_backtest, tab_ai = st.tabs([
-    "📊 Rankings", "🔍 Stock Detail", "📉 Charts", "🔮 Predictions", "📅 History", "🧪 Backtest", "🤖 AI Analysis"
+tab_overview, tab_detail, tab_charts, tab_predict, tab_history, tab_backtest, tab_trade, tab_ai = st.tabs([
+    "📊 Rankings", "🔍 Stock Detail", "📉 Charts", "🔮 Predictions", "📅 History", "🧪 Backtest", "💸 Paper Trading", "🤖 AI Analysis"
 ])
 
 
@@ -756,7 +758,230 @@ with tab_backtest:
             st.dataframe(holdings_df.iloc[::-1], use_container_width=True, hide_index=True, height=300)
 
 
-# ── Tab 6: AI Analysis ─────────────────────────────────────────────────────────
+# ── Tab 7: Paper Trading ──────────────────────────────────────────────────────
+
+with tab_trade:
+    st.header("💸 Paper Trading — Alpaca")
+    st.caption("All trades execute in Alpaca's paper trading environment. No real money is used.")
+
+    # Check keys configured
+    alpaca_ready = (
+        os.getenv("ALPACA_API_KEY", "").strip() not in ("", "your_alpaca_key_here") and
+        os.getenv("ALPACA_SECRET_KEY", "").strip() not in ("", "your_alpaca_secret_here")
+    )
+
+    if not alpaca_ready:
+        st.error("Alpaca API keys not configured. Add ALPACA_API_KEY and ALPACA_SECRET_KEY to your .env file, then restart the dashboard.")
+        st.code("ALPACA_API_KEY=your_key\nALPACA_SECRET_KEY=your_secret", language="bash")
+        st.stop()
+
+    # ── Account Overview ───────────────────────────────────────────────────────
+    try:
+        account = get_account()
+        positions = get_positions()
+        perf = get_performance_summary(positions, account)
+
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("Portfolio Value", f"${account['portfolio_value']:,.2f}")
+        m2.metric("Cash Available", f"${account['cash']:,.2f}")
+        m3.metric("Unrealized P&L", f"${perf.get('total_unrealized_pl', 0):+,.2f}",
+                  delta=f"{perf.get('total_return_pct', 0):+.2f}%")
+        m4.metric("Winners / Losers", f"{perf.get('num_winners', 0)} / {perf.get('num_losers', 0)}")
+        m5.metric("Open Positions", str(len(positions)))
+
+        if perf.get("best_performer"):
+            st.caption(f"Best: **{perf['best_performer']['symbol']}** {perf['best_performer']['pct']:+.1f}%   |   "
+                       f"Worst: **{perf['worst_performer']['symbol']}** {perf['worst_performer']['pct']:+.1f}%")
+
+    except Exception as e:
+        st.error(f"Could not connect to Alpaca: {e}")
+        st.stop()
+
+    st.markdown("---")
+
+    # ── Current Positions ──────────────────────────────────────────────────────
+    st.subheader("Current Positions")
+    if not positions:
+        st.info("No open positions yet. Run a rebalance below to start investing.")
+    else:
+        pos_df = pd.DataFrame([{
+            "Symbol": p["symbol"],
+            "Shares": round(p["qty"], 4),
+            "Avg Cost": p["avg_entry_price"],
+            "Current Price": p["current_price"],
+            "Market Value": p["market_value"],
+            "Unrealized P&L": p["unrealized_pl"],
+            "Return %": (p["unrealized_plpc"] or 0) * 100,
+            "Today %": (p["change_today"] or 0) * 100,
+        } for p in positions])
+
+        def _color_pl(val):
+            try:
+                v = float(val)
+                if v > 0:
+                    return "color: #00c853; font-weight: 600"
+                if v < 0:
+                    return "color: #ff1744; font-weight: 600"
+            except Exception:
+                pass
+            return ""
+
+        _pos_styler = pos_df.style
+        _pos_color = getattr(_pos_styler, "map", getattr(_pos_styler, "applymap", None))
+        styled_pos = _pos_color(
+            _color_pl, subset=["Unrealized P&L", "Return %", "Today %"]
+        ).format({
+            "Avg Cost": "${:.2f}",
+            "Current Price": "${:.2f}",
+            "Market Value": "${:,.2f}",
+            "Unrealized P&L": "${:+,.2f}",
+            "Return %": "{:+.2f}%",
+            "Today %": "{:+.2f}%",
+        })
+        st.dataframe(styled_pos, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # ── Rebalance Planner ──────────────────────────────────────────────────────
+    st.subheader("Rebalance Planner")
+    st.markdown("Scores your watchlist, selects the top-ranked stocks, and shows exactly what to buy and sell to align your portfolio.")
+
+    col_rb1, col_rb2, col_rb3 = st.columns(3)
+    with col_rb1:
+        top_n = st.slider("Hold top N stocks", 3, 15, 5)
+    with col_rb2:
+        alloc_pct = st.slider("% of portfolio to deploy", 50, 100, 90)
+    with col_rb3:
+        st.write("")
+        st.write("")
+        plan_btn = st.button("📋 Generate Plan", use_container_width=True, type="primary")
+
+    if plan_btn:
+        with st.spinner("Generating rebalance plan..."):
+            try:
+                plan = generate_rebalance_plan(ranked, top_n=top_n, allocation_pct=alloc_pct / 100)
+                st.session_state["rebalance_plan"] = plan
+            except Exception as e:
+                st.error(f"Failed to generate plan: {e}")
+
+    if "rebalance_plan" in st.session_state:
+        plan = st.session_state["rebalance_plan"]
+        st.markdown(f"**Generated:** {plan['generated_at']} | **Equity:** ${plan['account_equity']:,.2f} | **Deploying:** ${plan['deploy_amount']:,.2f} | **Per stock:** ${plan['target_per_stock']:,.2f}")
+
+        col_sells, col_buys = st.columns(2)
+
+        with col_sells:
+            st.markdown("#### 🔴 Sells")
+            if not plan["sells"]:
+                st.success("Nothing to sell — current holdings already aligned.")
+            else:
+                for s in plan["sells"]:
+                    curr_score = s.get("current_score")
+                    score_str = f"Score: {curr_score:.0f}" if curr_score else ""
+                    st.markdown(f"**{s['symbol']}** — {s['reason']} {score_str}  \nValue: ${s['current_value']:,.2f}")
+
+        with col_buys:
+            st.markdown("#### 🟢 Buys")
+            if not plan["buys"]:
+                st.success("Nothing to buy — already fully invested in top stocks.")
+            else:
+                for b in plan["buys"]:
+                    st.markdown(f"**{b['symbol']}** {b['signal']} — {b['reason']}  \nBuy: **${b['buy_amount']:,.2f}** (have ${b['current_value']:,.2f})")
+
+        st.markdown("---")
+        col_exec1, col_exec2 = st.columns([1, 3])
+        with col_exec1:
+            confirm = st.checkbox("I understand this places real paper trades")
+        with col_exec2:
+            exec_btn = st.button("▶ Execute Rebalance", type="primary", disabled=not confirm)
+
+        if exec_btn:
+            with st.spinner("Placing orders..."):
+                try:
+                    results = execute_rebalance(plan)
+                    del st.session_state["rebalance_plan"]
+                    successes = [r for r in results if r["success"]]
+                    failures = [r for r in results if not r["success"]]
+                    if successes:
+                        st.success(f"✅ {len(successes)} order(s) submitted successfully.")
+                    if failures:
+                        for f in failures:
+                            st.error(f"❌ {f['symbol']} {f['action']} failed: {f.get('error', 'unknown error')}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Execution failed: {e}")
+
+    st.markdown("---")
+
+    # ── Trade History ──────────────────────────────────────────────────────────
+    st.subheader("Trade History")
+
+    trade_col1, trade_col2 = st.columns([3, 1])
+    with trade_col2:
+        show_alpaca = st.toggle("Show Alpaca orders", value=True)
+
+    if show_alpaca:
+        try:
+            orders = get_recent_orders(limit=50)
+            if orders:
+                orders_df = pd.DataFrame(orders)[[
+                    "created_at", "symbol", "side", "notional", "filled_qty",
+                    "filled_avg_price", "status", "type"
+                ]]
+                orders_df.columns = ["Time", "Symbol", "Side", "$ Amount", "Filled Qty", "Fill Price", "Status", "Type"]
+
+                def _color_side(val):
+                    if str(val).lower() == "buy":
+                        return "color: #00c853; font-weight: 600"
+                    if str(val).lower() == "sell":
+                        return "color: #ff1744; font-weight: 600"
+                    return ""
+
+                _ord_styler = orders_df.style
+                _ord_color = getattr(_ord_styler, "map", getattr(_ord_styler, "applymap", None))
+                styled_orders = _ord_color(_color_side, subset=["Side"]).format({
+                    "$ Amount": lambda v: f"${v:,.2f}" if v else "—",
+                    "Fill Price": lambda v: f"${v:.2f}" if v else "—",
+                    "Filled Qty": lambda v: f"{v:.4f}" if v else "—",
+                })
+                st.dataframe(styled_orders, use_container_width=True, hide_index=True)
+            else:
+                st.info("No orders placed yet.")
+        except Exception as e:
+            st.error(f"Could not load orders: {e}")
+    else:
+        log = load_trade_log()
+        if log:
+            log_df = pd.DataFrame(log[::-1])[["timestamp", "symbol", "action", "amount", "reason", "status"]]
+            log_df.columns = ["Time", "Symbol", "Action", "Amount", "Reason", "Status"]
+            st.dataframe(log_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No trade log entries yet.")
+
+    st.markdown("---")
+
+    # ── Manual Order ───────────────────────────────────────────────────────────
+    with st.expander("🔧 Manual Order"):
+        man_col1, man_col2, man_col3, man_col4 = st.columns(4)
+        with man_col1:
+            man_ticker = st.selectbox("Symbol", [s["ticker"] for s in ranked], key="man_ticker")
+        with man_col2:
+            man_side = st.selectbox("Side", ["buy", "sell"])
+        with man_col3:
+            man_amount = st.number_input("Dollar Amount ($)", min_value=1.0, value=500.0, step=100.0)
+        with man_col4:
+            st.write("")
+            st.write("")
+            man_btn = st.button("Place Order", type="primary", use_container_width=True)
+        if man_btn:
+            try:
+                result = place_market_order(man_ticker, man_side, man_amount)  # noqa: F821
+                st.success(f"Order submitted: {man_side.upper()} ${man_amount:,.2f} of {man_ticker} | ID: {result['id']}")
+            except Exception as e:
+                st.error(f"Order failed: {e}")
+
+
+# ── Tab 8: AI Analysis ─────────────────────────────────────────────────────────
 
 with tab_ai:
     st.header("AI Analysis (Claude)")
