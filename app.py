@@ -18,9 +18,13 @@ from storage import (
 )
 from backtest import run_backtest
 from predictions import calculate_predictions, prediction_color, confidence_badge
-from trading.alpaca_client import get_account, get_positions, get_recent_orders, place_market_order
-from trading.rebalancer import get_performance_summary, load_trade_log
-from trading.strategy import generate_signals, execute_signals, load_config, save_config, load_performance, snapshot_performance
+try:
+    from trading.alpaca_client import get_account, get_positions, get_recent_orders, place_market_order
+    from trading.rebalancer import get_performance_summary, load_trade_log
+    from trading.strategy import generate_signals, execute_signals, load_config, save_config, load_performance, snapshot_performance
+    _trading_available = True
+except Exception as _trading_import_error:
+    _trading_available = False
 
 st.set_page_config(
     page_title="Stock Ranking Dashboard",
@@ -765,14 +769,18 @@ with tab_trade:
     st.header("💸 Paper Trading — Alpaca")
     st.caption("All trades execute in Alpaca's paper trading environment. No real money is used.")
 
+    if not _trading_available:
+        st.error("The `alpaca-py` package failed to install. Check that `alpaca-py>=0.8.0` is in requirements.txt and redeploy.")
+        st.stop()
+
     alpaca_ready = (
         os.getenv("ALPACA_API_KEY", "").strip() not in ("", "your_alpaca_key_here") and
         os.getenv("ALPACA_SECRET_KEY", "").strip() not in ("", "your_alpaca_secret_here")
     )
 
     if not alpaca_ready:
-        st.error("Alpaca API keys not configured. Add ALPACA_API_KEY and ALPACA_SECRET_KEY to your .env file, then restart the dashboard.")
-        st.code("ALPACA_API_KEY=your_key\nALPACA_SECRET_KEY=your_secret", language="bash")
+        st.error("Alpaca API keys not configured. Add them to Streamlit Secrets (Settings → Secrets) and redeploy.")
+        st.code("ALPACA_API_KEY = \"your_key\"\nALPACA_SECRET_KEY = \"your_secret\"", language="toml")
         st.stop()
 
     # ── Live account data ──────────────────────────────────────────────────────
