@@ -71,7 +71,7 @@ st.markdown("""
         text-transform: uppercase;
         letter-spacing: 0.07em;
         border-bottom: 2px solid transparent !important;
-        padding: 8px 18px !important;
+        padding: 8px 12px !important;
         font-family: 'DM Sans', sans-serif !important;
     }
     [data-testid="stTabs"] button[aria-selected="true"] {
@@ -136,6 +136,11 @@ st.markdown("""
         border-radius: 10px !important;
     }
     [data-testid="stExpander"] summary p { color: #ffffff !important; }
+    /* Hide the hidden Streamlit "sidebar"/"toolbar" text that bleeds through */
+    [data-testid="stSidebar"] [data-testid="stExpanderToggleIcon"] ~ p,
+    [data-testid="stExpander"] summary > div > p:not(:last-of-type) { display: none !important; }
+    details > summary { list-style: none; }
+    details > summary::-webkit-details-marker { display: none !important; }
 
     /* ── Sidebar ── */
     [data-testid="stSidebar"] label { color: #a0aec0 !important; font-size: 0.73rem !important; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -365,7 +370,7 @@ if triggered:
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 
 tab_overview, tab_detail, tab_charts, tab_predict, tab_history, tab_backtest, tab_trade, tab_ai = st.tabs([
-    "Rankings", "Stock Detail", "Charts", "Predictions", "History", "Backtest", "Paper Trading", "AI Analysis"
+    "Rankings", "Detail", "Charts", "Predictions", "History", "Backtest", "Trading", "AI"
 ])
 
 
