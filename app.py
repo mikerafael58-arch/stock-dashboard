@@ -791,6 +791,14 @@ with tab_trade:
         st.code("ALPACA_API_KEY = \"your_key\"\nALPACA_SECRET_KEY = \"your_secret\"", language="toml")
         st.stop()
 
+    # ── Debug info ─────────────────────────────────────────────────────────────
+    with st.expander("🔧 Debug — Key Status"):
+        ak = _st_secret("ALPACA_API_KEY")
+        sk = _st_secret("ALPACA_SECRET_KEY")
+        st.write(f"ALPACA_API_KEY: `{ak[:6]}...{ak[-4:]}` (length {len(ak)})")
+        st.write(f"ALPACA_SECRET_KEY: `{sk[:4]}...{sk[-4:]}` (length {len(sk)})")
+        st.write(f"Source: {'st.secrets' if hasattr(st, 'secrets') and st.secrets.get('ALPACA_API_KEY') else 'os.getenv'}")
+
     # ── Live account data ──────────────────────────────────────────────────────
     try:
         account = get_account()
