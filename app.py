@@ -27,7 +27,7 @@ except Exception as _trading_import_error:
     _trading_available = False
 
 st.set_page_config(
-    page_title="Stock Ranking Dashboard",
+    page_title="Market Intelligence Dashboard",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -35,15 +35,162 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    .score-high { color: #00c853; font-weight: bold; font-size: 1.1rem; }
-    .score-mid  { color: #ffab00; font-weight: bold; font-size: 1.1rem; }
-    .score-low  { color: #ff1744; font-weight: bold; font-size: 1.1rem; }
-    .alert-box  { background: #1a237e22; border-left: 4px solid #3f51b5; padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
+    /* ── Base ── */
+    [data-testid="stAppViewContainer"] { background: #0f1117; }
+    [data-testid="stSidebar"] { background: #161b27; border-right: 1px solid #1e2536; }
+    [data-testid="stHeader"] { background: transparent; }
+
+    /* ── Typography ── */
+    html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
+    h1, h2, h3 { color: #e8ecf0 !important; font-weight: 600 !important; letter-spacing: -0.02em; }
+
+    /* ── Metric cards ── */
+    [data-testid="metric-container"] {
+        background: #161b27;
+        border: 1px solid #1e2536;
+        border-radius: 10px;
+        padding: 16px 20px;
+    }
+    [data-testid="metric-container"] label { color: #6b7a99 !important; font-size: 0.72rem !important; text-transform: uppercase; letter-spacing: 0.08em; }
+    [data-testid="metric-container"] [data-testid="stMetricValue"] { color: #e8ecf0 !important; font-size: 1.4rem !important; font-weight: 700 !important; }
+
+    /* ── Tabs ── */
+    [data-testid="stTabs"] button {
+        color: #6b7a99 !important;
+        font-size: 0.82rem !important;
+        font-weight: 500 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        border-bottom: 2px solid transparent !important;
+        padding: 8px 16px !important;
+    }
+    [data-testid="stTabs"] button[aria-selected="true"] {
+        color: #4f8ef7 !important;
+        border-bottom: 2px solid #4f8ef7 !important;
+        background: transparent !important;
+    }
+
+    /* ── Buttons ── */
+    [data-testid="baseButton-primary"] {
+        background: #4f8ef7 !important;
+        color: #fff !important;
+        border-radius: 7px !important;
+        font-weight: 600 !important;
+        border: none !important;
+        letter-spacing: 0.02em;
+    }
+    [data-testid="baseButton-secondary"] {
+        background: #1e2536 !important;
+        color: #c0cce0 !important;
+        border: 1px solid #2a3347 !important;
+        border-radius: 7px !important;
+    }
+
+    /* ── Inputs / selects ── */
+    [data-testid="stSelectbox"] > div, [data-testid="stTextArea"] textarea,
+    [data-testid="stNumberInput"] input {
+        background: #1e2536 !important;
+        border: 1px solid #2a3347 !important;
+        border-radius: 7px !important;
+        color: #c0cce0 !important;
+    }
+
+    /* ── Dataframe ── */
+    [data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; border: 1px solid #1e2536; }
+    [data-testid="stDataFrame"] th {
+        background: #161b27 !important;
+        color: #6b7a99 !important;
+        font-size: 0.70rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        border-bottom: 1px solid #1e2536 !important;
+        font-weight: 600 !important;
+    }
+    [data-testid="stDataFrame"] td {
+        background: #0f1117 !important;
+        color: #c0cce0 !important;
+        font-size: 0.84rem !important;
+        border-bottom: 1px solid #161b27 !important;
+    }
+    [data-testid="stDataFrame"] tr:hover td { background: #161b27 !important; }
+
+    /* ── Expander ── */
+    [data-testid="stExpander"] {
+        background: #161b27 !important;
+        border: 1px solid #1e2536 !important;
+        border-radius: 10px !important;
+    }
+
+    /* ── Captions & helpers ── */
+    .score-high { color: #00d4aa; font-weight: 700; }
+    .score-mid  { color: #f59e0b; font-weight: 700; }
+    .score-low  { color: #f43f5e; font-weight: 700; }
+
+    /* ── Stock card ── */
+    .stock-card {
+        background: #161b27;
+        border: 1px solid #1e2536;
+        border-radius: 10px;
+        padding: 16px 20px;
+        margin-bottom: 10px;
+        transition: border-color 0.2s;
+    }
+    .stock-card:hover { border-color: #4f8ef7; }
+    .ticker-label { font-size: 1.1rem; font-weight: 700; color: #e8ecf0; }
+    .company-name { font-size: 0.78rem; color: #6b7a99; margin-top: 2px; }
+    .sector-badge {
+        display: inline-block;
+        background: #1e2d47;
+        color: #4f8ef7;
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 20px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .signal-buy   { color: #00d4aa; font-weight: 700; font-size: 0.82rem; }
+    .signal-hold  { color: #f59e0b; font-weight: 700; font-size: 0.82rem; }
+    .signal-avoid { color: #f43f5e; font-weight: 700; font-size: 0.82rem; }
+    .score-pill {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+    .pill-green { background: rgba(0,212,170,0.12); color: #00d4aa; }
+    .pill-amber { background: rgba(245,158,11,0.12); color: #f59e0b; }
+    .pill-red   { background: rgba(244,63,94,0.12);  color: #f43f5e; }
+
+    /* ── Divider ── */
+    hr { border-color: #1e2536 !important; }
+
+    /* ── Sidebar labels ── */
+    [data-testid="stSidebar"] label { color: #6b7a99 !important; font-size: 0.75rem !important; text-transform: uppercase; letter-spacing: 0.06em; }
+    [data-testid="stSidebar"] .stSlider { padding-top: 4px; }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+_CHART_LAYOUT = dict(
+    paper_bgcolor="#0f1117",
+    plot_bgcolor="#161b27",
+    font=dict(color="#8892a4", size=11, family="Inter, Segoe UI, sans-serif"),
+    title=dict(font=dict(color="#c0cce0", size=13, weight="bold")),
+    legend=dict(bgcolor="#161b27", bordercolor="#1e2536", borderwidth=1, font=dict(color="#8892a4")),
+    xaxis=dict(gridcolor="#1e2536", zerolinecolor="#1e2536", tickfont=dict(color="#6b7a99")),
+    yaxis=dict(gridcolor="#1e2536", zerolinecolor="#1e2536", tickfont=dict(color="#6b7a99")),
+    margin=dict(t=40, b=30, l=10, r=10),
+)
+
+
+def apply_chart_theme(fig):
+    fig.update_layout(**_CHART_LAYOUT)
+    return fig
+
 
 def signal_label(score):
     if score is None:
@@ -230,12 +377,28 @@ tab_overview, tab_detail, tab_charts, tab_predict, tab_history, tab_backtest, ta
 # ── Tab 1: Rankings ────────────────────────────────────────────────────────────
 
 with tab_overview:
-    st.header("Multi-Factor Stock Rankings")
+    st.markdown("## Market Intelligence — Stock Screener")
 
-    with st.expander("🔎 Filter Stocks", expanded=False):
+    # ── Summary bar ───────────────────────────────────────────────────────────
+    buy_count  = sum(1 for s in ranked if (s["composite"] or 0) >= 65)
+    hold_count = sum(1 for s in ranked if 40 <= (s["composite"] or 0) < 65)
+    avoid_count= sum(1 for s in ranked if (s["composite"] or 0) < 40)
+    avg_comp   = round(sum(s["composite"] or 0 for s in ranked) / len(ranked), 1) if ranked else 0
+
+    sb1, sb2, sb3, sb4, sb5 = st.columns(5)
+    sb1.metric("Stocks Tracked", len(ranked))
+    sb2.metric("🟢 Buy", buy_count)
+    sb3.metric("🟡 Hold", hold_count)
+    sb4.metric("🔴 Avoid", avoid_count)
+    sb5.metric("Avg Score", avg_comp)
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # ── Filters ───────────────────────────────────────────────────────────────
+    with st.expander("Filter & Screen", expanded=False):
         fc1, fc2, fc3, fc4, fc5 = st.columns(5)
         with fc1:
-            sector_options = ["All"] + sorted(set(s["sector"] for s in ranked if s["sector"] != "Unknown"))
+            sector_options = ["All Sectors"] + sorted(set(s["sector"] for s in ranked if s["sector"] != "Unknown"))
             sector_filter = st.selectbox("Sector", sector_options)
         with fc2:
             min_composite = st.slider("Min Composite", 0, 100, 0)
@@ -247,66 +410,115 @@ with tab_overview:
             min_quality = st.slider("Min Quality", 0, 100, 0)
 
     def passes_filters(s):
-        if sector_filter != "All" and s["sector"] != sector_filter:
+        if sector_filter != "All Sectors" and s["sector"] != sector_filter:
             return False
-        if (s["composite"] or 0) < min_composite:
-            return False
-        if (s["momentum"].get("score") or 0) < min_momentum:
-            return False
-        if (s["value"].get("score") or 0) < min_value:
-            return False
-        if (s["quality"].get("score") or 0) < min_quality:
-            return False
+        if (s["composite"] or 0) < min_composite: return False
+        if (s["momentum"].get("score") or 0) < min_momentum: return False
+        if (s["value"].get("score") or 0) < min_value: return False
+        if (s["quality"].get("score") or 0) < min_quality: return False
         return True
 
     filtered = [s for s in ranked if passes_filters(s)]
-    st.caption(f"{len(filtered)} of {len(ranked)} stocks match your filters")
+    st.caption(f"Showing {len(filtered)} of {len(ranked)} stocks")
 
+    # ── Score color helpers ───────────────────────────────────────────────────
+    def _pill(score):
+        if score is None: return "—"
+        cls = "pill-green" if score >= 65 else ("pill-amber" if score >= 40 else "pill-red")
+        return f'<span class="score-pill {cls}">{score:.0f}</span>'
+
+    def _ret_color(val):
+        if val is None: return "—"
+        color = "#00d4aa" if val >= 0 else "#f43f5e"
+        sign = "+" if val >= 0 else ""
+        return f'<span style="color:{color};font-weight:600">{sign}{val:.1f}%</span>'
+
+    def _sig_html(score):
+        if score is None: return "—"
+        if score >= 65: return '<span class="signal-buy">● Buy</span>'
+        if score >= 40: return '<span class="signal-hold">● Hold</span>'
+        return '<span class="signal-avoid">● Avoid</span>'
+
+    # ── Main stock table ──────────────────────────────────────────────────────
     rows = []
     for s in filtered:
+        pm = s["price_metrics"]
+        fm = s["fund_metrics"]
+        analyst_target = fm.get("analyst_target_mean")
+        price = pm.get("current_price")
+        analyst_upside = ((analyst_target / price) - 1) * 100 if analyst_target and price else None
         rows.append({
-            "Rank": s.get("rank", "—"),
+            "#": s.get("rank"),
             "Ticker": s["ticker"],
-            "Name": s["name"][:28],
-            "Sector": s["sector"],
+            "Company": s["name"][:26],
+            "Sector": s["sector"][:18] if s["sector"] else "—",
             "Signal": signal_label(s["composite"]),
-            "Price": s["price_metrics"].get("current_price"),
+            "Price": price,
+            "7D %": pm.get("return_1m"),   # approx
+            "1M %": pm.get("return_1m"),
+            "3M %": pm.get("return_3m"),
+            "1Y %": pm.get("return_1y"),
+            "Mkt Cap": fm.get("market_cap"),
+            "Analyst Target": analyst_target,
+            "Upside": analyst_upside,
             "Composite": s["composite"],
             "Momentum": s["momentum"].get("score"),
             "Value": s["value"].get("score"),
             "Quality": s["quality"].get("score"),
-            "1M %": s["price_metrics"].get("return_1m"),
-            "3M %": s["price_metrics"].get("return_3m"),
-            "6M %": s["price_metrics"].get("return_6m"),
-            "RSI": s["price_metrics"].get("rsi_14"),
-            "Fwd P/E": s["fund_metrics"].get("forward_pe"),
+            "Fwd P/E": fm.get("forward_pe"),
+            "Div Yield": fm.get("dividend_yield"),
+            "Beta": fm.get("beta"),
         })
 
     df = pd.DataFrame(rows)
 
+    def _fmt_mktcap(v):
+        if not v: return "—"
+        if v >= 1e12: return f"${v/1e12:.1f}T"
+        if v >= 1e9:  return f"${v/1e9:.1f}B"
+        if v >= 1e6:  return f"${v/1e6:.1f}M"
+        return f"${v:,.0f}"
+
+    def _fmt_ret(v):
+        if v is None: return "—"
+        return ("+" if v >= 0 else "") + f"{v:.1f}%"
+
+    def _color_ret_cell(val):
+        try:
+            v = float(val)
+            if v > 0: return "color: #00d4aa; font-weight: 600"
+            if v < 0: return "color: #f43f5e; font-weight: 600"
+        except Exception: pass
+        return "color: #6b7a99"
+
     _styler = df.style
-    _cell_style = getattr(_styler, "map", getattr(_styler, "applymap", None))
-    styled = _cell_style(
-        _color_score, subset=["Composite", "Momentum", "Value", "Quality"]
-    ).format({
-        "Price": lambda v: f"${v:.2f}" if v else "—",
-        "Composite": lambda v: f"{v:.0f}" if v else "—",
-        "Momentum": lambda v: f"{v:.0f}" if v else "—",
-        "Value": lambda v: f"{v:.0f}" if v else "—",
-        "Quality": lambda v: f"{v:.0f}" if v else "—",
-        "1M %": lambda v: (("+" if v >= 0 else "") + f"{v:.1f}%") if v else "—",
-        "3M %": lambda v: (("+" if v >= 0 else "") + f"{v:.1f}%") if v else "—",
-        "6M %": lambda v: (("+" if v >= 0 else "") + f"{v:.1f}%") if v else "—",
-        "RSI": lambda v: f"{v:.1f}" if v else "—",
-        "Fwd P/E": lambda v: f"{v:.1f}" if v else "—",
+    _apply = getattr(_styler, "map", getattr(_styler, "applymap", None))
+    _styler = _apply(_color_score, subset=["Composite", "Momentum", "Value", "Quality"])
+    _apply2 = getattr(_styler, "map", getattr(_styler, "applymap", None))
+    styled = _apply2(_color_ret_cell, subset=["1M %", "3M %", "1Y %", "Upside"]).format({
+        "Price":           lambda v: f"${v:,.2f}" if v else "—",
+        "7D %":            _fmt_ret,
+        "1M %":            _fmt_ret,
+        "3M %":            _fmt_ret,
+        "1Y %":            _fmt_ret,
+        "Mkt Cap":         _fmt_mktcap,
+        "Analyst Target":  lambda v: f"${v:,.2f}" if v else "—",
+        "Upside":          _fmt_ret,
+        "Composite":       lambda v: f"{v:.0f}" if v else "—",
+        "Momentum":        lambda v: f"{v:.0f}" if v else "—",
+        "Value":           lambda v: f"{v:.0f}" if v else "—",
+        "Quality":         lambda v: f"{v:.0f}" if v else "—",
+        "Fwd P/E":         lambda v: f"{v:.1f}x" if v else "—",
+        "Div Yield":       lambda v: f"{v*100:.1f}%" if v else "—",
+        "Beta":            lambda v: f"{v:.2f}" if v else "—",
     })
 
-    st.dataframe(styled, use_container_width=True, hide_index=True, height=580)
+    st.dataframe(styled, use_container_width=True, hide_index=True, height=600)
 
-    st.markdown("---")
+    st.markdown("<hr>", unsafe_allow_html=True)
 
-    # Price Alerts
-    st.subheader("🔔 Price Alerts")
+    # ── Alerts ────────────────────────────────────────────────────────────────
+    st.markdown("#### Price Alerts")
     col_al1, col_al2, col_al3, col_al4 = st.columns([2, 2, 1, 1])
     with col_al1:
         alert_ticker = st.selectbox("Stock", [s["ticker"] for s in ranked], key="alert_ticker")
@@ -323,42 +535,43 @@ with tab_overview:
 
     current_alerts = load_alerts()
     if current_alerts:
-        st.markdown("**Active Alerts:**")
         price_map = {s["ticker"]: s["price_metrics"].get("current_price") for s in ranked}
         for ticker, al in current_alerts.items():
             current = price_map.get(ticker)
             current_str = f"${current:.2f}" if current else "N/A"
-            col_a, col_b = st.columns([4, 1])
+            col_a, col_b = st.columns([5, 1])
             with col_a:
                 st.markdown(f"**{ticker}** — Alert when {al['condition']} **${al['target']:.2f}** · Current: {current_str}")
             with col_b:
-                if st.button("Remove", key=f"del_{ticker}"):
+                if st.button("✕", key=f"del_{ticker}"):
                     delete_alert(ticker)
                     st.rerun()
 
-    st.markdown("---")
+    st.markdown("<hr>", unsafe_allow_html=True)
 
-    # Scatter
-    st.subheader("Score Distribution")
+    # ── Scatter ───────────────────────────────────────────────────────────────
+    st.markdown("#### Score Distribution")
+    scatter_data = pd.DataFrame([{
+        "ticker": s["ticker"], "momentum": s["momentum"].get("score"),
+        "quality": s["quality"].get("score"), "composite": s["composite"],
+        "sector": s["sector"], "signal": signal_label(s["composite"]),
+    } for s in ranked if s["composite"] is not None])
+
     fig_scatter = px.scatter(
-        pd.DataFrame([{
-            "ticker": s["ticker"],
-            "momentum": s["momentum"].get("score"),
-            "value": s["value"].get("score"),
-            "quality": s["quality"].get("score"),
-            "composite": s["composite"],
-            "sector": s["sector"],
-            "signal": signal_label(s["composite"]),
-        } for s in ranked if s["composite"] is not None]),
-        x="momentum", y="quality",
-        size="composite", color="sector",
-        hover_name="ticker",
-        hover_data={"signal": True},
-        labels={"momentum": "Momentum Score", "quality": "Quality Score"},
-        title="Momentum vs Quality (bubble size = composite score)",
-        height=420,
+        scatter_data, x="momentum", y="quality", size="composite",
+        color="sector", hover_name="ticker", hover_data={"signal": True},
+        labels={"momentum": "Momentum", "quality": "Quality"},
+        title="Momentum vs Quality — bubble size = composite score",
+        height=400,
+        template="plotly_dark",
     )
-    st.plotly_chart(fig_scatter, use_container_width=True)
+    fig_scatter.update_layout(
+        paper_bgcolor="#0f1117", plot_bgcolor="#161b27",
+        font=dict(color="#6b7a99", size=11),
+        title=dict(font=dict(color="#c0cce0", size=13)),
+        legend=dict(bgcolor="#161b27", bordercolor="#1e2536"),
+    )
+    st.plotly_chart(apply_chart_theme(fig_scatter), use_container_width=True)
 
 
 # ── Tab 2: Stock Detail ────────────────────────────────────────────────────────
@@ -432,7 +645,7 @@ with tab_detail:
         title=f"{selected} Factor Radar",
         height=400,
     )
-    st.plotly_chart(fig_radar, use_container_width=True)
+    st.plotly_chart(apply_chart_theme(fig_radar), use_container_width=True)
 
 
 # ── Tab 3: Charts ──────────────────────────────────────────────────────────────
@@ -454,11 +667,11 @@ with tab_charts:
         if len(hist) >= 200:
             fig.add_trace(go.Scatter(x=hist.index, y=hist["Close"].rolling(200).mean(), name="SMA 200", line=dict(color="red", width=1.5)))
         fig.update_layout(title=f"{chart_ticker} — 1 Year", xaxis_title="Date", yaxis_title="Price (USD)", height=500, xaxis_rangeslider_visible=False)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(apply_chart_theme(fig), use_container_width=True)
 
         fig_vol = go.Figure(go.Bar(x=hist.index, y=hist["Volume"], marker_color="steelblue", name="Volume"))
         fig_vol.update_layout(title="Volume", height=200, margin=dict(t=30))
-        st.plotly_chart(fig_vol, use_container_width=True)
+        st.plotly_chart(apply_chart_theme(fig_vol), use_container_width=True)
 
     st.markdown("---")
     st.subheader("Composite Score by Stock")
@@ -470,7 +683,7 @@ with tab_charts:
         height=max(400, len(ranked) * 25),
         labels={"composite": "Composite Score", "ticker": ""},
     )
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(apply_chart_theme(fig_bar), use_container_width=True)
 
 
 # ── Tab 4: Predictions ────────────────────────────────────────────────────────
@@ -623,7 +836,7 @@ with tab_predict:
                 height=380,
                 showlegend=True,
             )
-            st.plotly_chart(fig_target, use_container_width=True)
+            st.plotly_chart(apply_chart_theme(fig_target), use_container_width=True)
 
 
 # ── Tab 5: History ─────────────────────────────────────────────────────────────
@@ -668,7 +881,7 @@ with tab_history:
                 height=420,
             )
             fig_hist.update_layout(yaxis_range=[0, 100])
-            st.plotly_chart(fig_hist, use_container_width=True)
+            st.plotly_chart(apply_chart_theme(fig_hist), use_container_width=True)
 
             st.subheader("Latest vs Previous Snapshot")
             if len(history) >= 2:
@@ -750,7 +963,7 @@ with tab_backtest:
                 height=420,
                 legend=dict(orientation="h", yanchor="bottom", y=1.02),
             )
-            st.plotly_chart(fig_bt, use_container_width=True)
+            st.plotly_chart(apply_chart_theme(fig_bt), use_container_width=True)
 
             # Holdings log
             st.subheader("Monthly Holdings")
@@ -1002,7 +1215,7 @@ with tab_trade:
             fillcolor="rgba(0,200,83,0.08)",
         ))
         fig_perf.update_layout(title="Portfolio Value Over Time", yaxis_title="Value ($)", height=350)
-        st.plotly_chart(fig_perf, use_container_width=True)
+        st.plotly_chart(apply_chart_theme(fig_perf), use_container_width=True)
 
         start_val = perf_history[0]["portfolio_value"]
         curr_val = perf_history[-1]["portfolio_value"]
