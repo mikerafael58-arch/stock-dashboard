@@ -136,11 +136,21 @@ st.markdown("""
         border-radius: 10px !important;
     }
     [data-testid="stExpander"] summary p { color: #ffffff !important; }
-    /* Hide the hidden Streamlit "sidebar"/"toolbar" text that bleeds through */
-    [data-testid="stSidebar"] [data-testid="stExpanderToggleIcon"] ~ p,
-    [data-testid="stExpander"] summary > div > p:not(:last-of-type) { display: none !important; }
-    details > summary { list-style: none; }
+    /* Fix: hide artifact text before expander labels */
+    details > summary { list-style: none; overflow: hidden; }
     details > summary::-webkit-details-marker { display: none !important; }
+    details > summary::marker { display: none !important; }
+    /* Make all content in expander summary transparent, then selectively show label */
+    [data-testid="stExpander"] summary > div > p:first-of-type:not(:only-of-type) {
+        position: absolute !important; width: 1px !important; height: 1px !important;
+        clip: rect(0,0,0,0) !important; overflow: hidden !important;
+        white-space: nowrap !important; color: transparent !important;
+        font-size: 0 !important; display: none !important;
+    }
+    /* Catch any span-based artifact too */
+    [data-testid="stExpander"] summary > div > span:not([data-testid]):not(:only-child) {
+        display: none !important; color: transparent !important; font-size: 0 !important;
+    }
 
     /* ── Sidebar ── */
     [data-testid="stSidebar"] label { color: #a0aec0 !important; font-size: 0.73rem !important; text-transform: uppercase; letter-spacing: 0.06em; }
