@@ -37,8 +37,8 @@ st.markdown("""
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
     /* ── Base ── */
-    [data-testid="stAppViewContainer"] { background: #0b0e1a; }
-    [data-testid="stSidebar"] { background: #10131f; border-right: 1px solid #1c2033; }
+    [data-testid="stAppViewContainer"] { background: #1a1f2e; }
+    [data-testid="stSidebar"] { background: #1f253a; border-right: 1px solid #2a3050; }
     [data-testid="stHeader"] { background: transparent; }
 
     /* ── Global font + white text ── */
@@ -54,8 +54,8 @@ st.markdown("""
 
     /* ── Metric cards ── */
     [data-testid="metric-container"] {
-        background: #10131f;
-        border: 1px solid #1c2033;
+        background: #1f253a;
+        border: 1px solid #2a3050;
         border-radius: 10px;
         padding: 16px 20px;
     }
@@ -100,8 +100,8 @@ st.markdown("""
     /* ── Inputs / selects ── */
     [data-testid="stSelectbox"] > div, [data-testid="stTextArea"] textarea,
     [data-testid="stNumberInput"] input {
-        background: #1c2033 !important;
-        border: 1px solid #2a3050 !important;
+        background: #252c42 !important;
+        border: 1px solid #3a4260 !important;
         border-radius: 7px !important;
         color: #ffffff !important;
     }
@@ -109,9 +109,9 @@ st.markdown("""
     [data-testid="stSlider"] p { color: #ffffff !important; }
 
     /* ── Dataframe ── */
-    [data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; border: 1px solid #1c2033; }
+    [data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; border: 1px solid #2a3050; }
     [data-testid="stDataFrame"] th {
-        background: #10131f !important;
+        background: #1f253a !important;
         color: #a0aec0 !important;
         font-size: 0.69rem !important;
         text-transform: uppercase;
@@ -121,18 +121,18 @@ st.markdown("""
         font-family: 'DM Sans', sans-serif !important;
     }
     [data-testid="stDataFrame"] td {
-        background: #0b0e1a !important;
+        background: #1a1f2e !important;
         color: #ffffff !important;
         font-size: 0.84rem !important;
         border-bottom: 1px solid #10131f !important;
         font-family: 'DM Sans', sans-serif !important;
     }
-    [data-testid="stDataFrame"] tr:hover td { background: #10131f !important; }
+    [data-testid="stDataFrame"] tr:hover td { background: #252c42 !important; }
 
     /* ── Expander ── */
     [data-testid="stExpander"] {
-        background: #10131f !important;
-        border: 1px solid #1c2033 !important;
+        background: #1f253a !important;
+        border: 1px solid #2a3050 !important;
         border-radius: 10px !important;
     }
     [data-testid="stExpander"] summary p { color: #ffffff !important; }
@@ -171,8 +171,8 @@ st.markdown("""
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 _CHART_LAYOUT = dict(
-    paper_bgcolor="#0f1117",
-    plot_bgcolor="#161b27",
+    paper_bgcolor="#1a1f2e",
+    plot_bgcolor="#1f253a",
     font=dict(color="#8892a4", size=11, family="Inter, Segoe UI, sans-serif"),
     title=dict(font=dict(color="#c0cce0", size=13, weight="bold")),
     legend=dict(bgcolor="#161b27", bordercolor="#1e2536", borderwidth=1, font=dict(color="#8892a4")),
@@ -561,10 +561,10 @@ with tab_overview:
         template="plotly_dark",
     )
     fig_scatter.update_layout(
-        paper_bgcolor="#0f1117", plot_bgcolor="#161b27",
+        paper_bgcolor="#1a1f2e", plot_bgcolor="#1f253a",
         font=dict(color="#6b7a99", size=11),
         title=dict(font=dict(color="#c0cce0", size=13)),
-        legend=dict(bgcolor="#161b27", bordercolor="#1e2536"),
+        legend=dict(bgcolor="#1f253a", bordercolor="#2a3050"),
     )
     st.plotly_chart(apply_chart_theme(fig_scatter), use_container_width=True)
 
