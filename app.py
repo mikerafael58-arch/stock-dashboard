@@ -19,7 +19,8 @@ from storage import (
 from backtest import run_backtest
 from predictions import calculate_predictions, prediction_color, confidence_badge
 from trading.alpaca_client import get_account, get_positions, get_recent_orders, place_market_order
-from trading.rebalancer import generate_rebalance_plan, execute_rebalance, get_performance_summary, load_trade_log
+from trading.rebalancer import get_performance_summary, load_trade_log
+from trading.strategy import generate_signals, execute_signals, load_config, save_config, load_performance, snapshot_performance
 
 st.set_page_config(
     page_title="Stock Ranking Dashboard",
@@ -764,7 +765,6 @@ with tab_trade:
     st.header("💸 Paper Trading — Alpaca")
     st.caption("All trades execute in Alpaca's paper trading environment. No real money is used.")
 
-    # Check keys configured
     alpaca_ready = (
         os.getenv("ALPACA_API_KEY", "").strip() not in ("", "your_alpaca_key_here") and
         os.getenv("ALPACA_SECRET_KEY", "").strip() not in ("", "your_alpaca_secret_here")
@@ -775,190 +775,235 @@ with tab_trade:
         st.code("ALPACA_API_KEY=your_key\nALPACA_SECRET_KEY=your_secret", language="bash")
         st.stop()
 
-    # ── Account Overview ───────────────────────────────────────────────────────
+    # ── Live account data ──────────────────────────────────────────────────────
     try:
         account = get_account()
         positions = get_positions()
         perf = get_performance_summary(positions, account)
-
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Portfolio Value", f"${account['portfolio_value']:,.2f}")
-        m2.metric("Cash Available", f"${account['cash']:,.2f}")
-        m3.metric("Unrealized P&L", f"${perf.get('total_unrealized_pl', 0):+,.2f}",
-                  delta=f"{perf.get('total_return_pct', 0):+.2f}%")
-        m4.metric("Winners / Losers", f"{perf.get('num_winners', 0)} / {perf.get('num_losers', 0)}")
-        m5.metric("Open Positions", str(len(positions)))
-
-        if perf.get("best_performer"):
-            st.caption(f"Best: **{perf['best_performer']['symbol']}** {perf['best_performer']['pct']:+.1f}%   |   "
-                       f"Worst: **{perf['worst_performer']['symbol']}** {perf['worst_performer']['pct']:+.1f}%")
-
     except Exception as e:
         st.error(f"Could not connect to Alpaca: {e}")
         st.stop()
 
-    st.markdown("---")
-
-    # ── Current Positions ──────────────────────────────────────────────────────
-    st.subheader("Current Positions")
-    if not positions:
-        st.info("No open positions yet. Run a rebalance below to start investing.")
-    else:
-        pos_df = pd.DataFrame([{
-            "Symbol": p["symbol"],
-            "Shares": round(p["qty"], 4),
-            "Avg Cost": p["avg_entry_price"],
-            "Current Price": p["current_price"],
-            "Market Value": p["market_value"],
-            "Unrealized P&L": p["unrealized_pl"],
-            "Return %": (p["unrealized_plpc"] or 0) * 100,
-            "Today %": (p["change_today"] or 0) * 100,
-        } for p in positions])
-
-        def _color_pl(val):
-            try:
-                v = float(val)
-                if v > 0:
-                    return "color: #00c853; font-weight: 600"
-                if v < 0:
-                    return "color: #ff1744; font-weight: 600"
-            except Exception:
-                pass
-            return ""
-
-        _pos_styler = pos_df.style
-        _pos_color = getattr(_pos_styler, "map", getattr(_pos_styler, "applymap", None))
-        styled_pos = _pos_color(
-            _color_pl, subset=["Unrealized P&L", "Return %", "Today %"]
-        ).format({
-            "Avg Cost": "${:.2f}",
-            "Current Price": "${:.2f}",
-            "Market Value": "${:,.2f}",
-            "Unrealized P&L": "${:+,.2f}",
-            "Return %": "{:+.2f}%",
-            "Today %": "{:+.2f}%",
-        })
-        st.dataframe(styled_pos, use_container_width=True, hide_index=True)
+    # ── Account Overview ───────────────────────────────────────────────────────
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Portfolio Value", f"${account['portfolio_value']:,.2f}")
+    m2.metric("Cash Available", f"${account['cash']:,.2f}")
+    m3.metric("Unrealized P&L", f"${perf.get('total_unrealized_pl', 0):+,.2f}",
+              delta=f"{perf.get('total_return_pct', 0):+.2f}%")
+    m4.metric("Winners / Losers", f"{perf.get('num_winners', 0)} / {perf.get('num_losers', 0)}")
+    m5.metric("Open Positions", str(len(positions)))
+    if perf.get("best_performer"):
+        st.caption(f"Best: **{perf['best_performer']['symbol']}** {perf['best_performer']['pct']:+.1f}%  |  "
+                   f"Worst: **{perf['worst_performer']['symbol']}** {perf['worst_performer']['pct']:+.1f}%")
 
     st.markdown("---")
 
-    # ── Rebalance Planner ──────────────────────────────────────────────────────
-    st.subheader("Rebalance Planner")
-    st.markdown("Scores your watchlist, selects the top-ranked stocks, and shows exactly what to buy and sell to align your portfolio.")
+    # ── Strategy Configuration ─────────────────────────────────────────────────
+    st.subheader("Strategy Configuration")
+    st.markdown("This strategy uses your dashboard's multi-factor scores to decide what to buy, sell, and hold automatically.")
 
-    col_rb1, col_rb2, col_rb3 = st.columns(3)
-    with col_rb1:
-        top_n = st.slider("Hold top N stocks", 3, 15, 5)
-    with col_rb2:
-        alloc_pct = st.slider("% of portfolio to deploy", 50, 100, 90)
-    with col_rb3:
-        st.write("")
-        st.write("")
-        plan_btn = st.button("📋 Generate Plan", use_container_width=True, type="primary")
+    cfg = load_config()
+    sc1, sc2, sc3, sc4, sc5 = st.columns(5)
+    with sc1:
+        cfg["top_n"] = st.number_input("Hold top N stocks", 1, 20, int(cfg["top_n"]))
+    with sc2:
+        cfg["min_composite_score"] = st.slider("Min composite score", 0, 100, int(cfg["min_composite_score"]))
+    with sc3:
+        cfg["allocation_method"] = st.selectbox(
+            "Allocation method",
+            ["score_weighted", "equal_weight"],
+            index=0 if cfg["allocation_method"] == "score_weighted" else 1,
+            help="Score-weighted gives more to higher-ranked stocks. Equal weight splits evenly."
+        )
+    with sc4:
+        cfg["deploy_pct"] = st.slider("% equity to deploy", 50, 100, int(cfg["deploy_pct"]))
+    with sc5:
+        cfg["stop_loss_pct"] = st.slider("Stop loss %", -50, -1, int(cfg["stop_loss_pct"]),
+                                         help="Automatically sell any position that drops below this %")
 
-    if plan_btn:
-        with st.spinner("Generating rebalance plan..."):
+    if st.button("💾 Save Strategy Config"):
+        save_config(cfg)
+        st.success("Strategy saved.")
+
+    st.markdown("---")
+
+    # ── Strategy Signals ───────────────────────────────────────────────────────
+    st.subheader("Strategy Signals")
+    st.markdown("What the strategy says to do right now, based on current scores.")
+
+    col_gen, col_info = st.columns([1, 3])
+    with col_gen:
+        gen_btn = st.button("🔍 Generate Signals", type="primary", use_container_width=True)
+    with col_info:
+        st.caption(f"Strategy: top {cfg['top_n']} stocks | min score {cfg['min_composite_score']} | {cfg['allocation_method'].replace('_', ' ')} | stop loss {cfg['stop_loss_pct']}%")
+
+    if gen_btn:
+        with st.spinner("Analyzing scores and generating signals..."):
             try:
-                plan = generate_rebalance_plan(ranked, top_n=top_n, allocation_pct=alloc_pct / 100)
-                st.session_state["rebalance_plan"] = plan
+                signals = generate_signals(ranked, cfg)
+                st.session_state["strategy_signals"] = signals
             except Exception as e:
-                st.error(f"Failed to generate plan: {e}")
+                st.error(f"Failed: {e}")
 
-    if "rebalance_plan" in st.session_state:
-        plan = st.session_state["rebalance_plan"]
-        st.markdown(f"**Generated:** {plan['generated_at']} | **Equity:** ${plan['account_equity']:,.2f} | **Deploying:** ${plan['deploy_amount']:,.2f} | **Per stock:** ${plan['target_per_stock']:,.2f}")
+    if "strategy_signals" in st.session_state:
+        sig = st.session_state["strategy_signals"]
+        st.markdown(f"**{sig['generated_at']}** — {sig['summary']}")
+        st.markdown(f"Portfolio: **${sig['account']['equity']:,.2f}** | Deploying: **${sig['account']['equity'] * cfg['deploy_pct'] / 100:,.2f}**")
 
-        col_sells, col_buys = st.columns(2)
+        # Target allocation breakdown
+        if sig["target_allocations"]:
+            alloc_df = pd.DataFrame([
+                {
+                    "Ticker": ticker,
+                    "Target $": f"${amt:,.2f}",
+                    "Target %": f"{amt / sig['account']['equity'] * 100:.1f}%",
+                    "Score": next((f"{s['composite']:.0f}" for s in ranked if s["ticker"] == ticker), "—"),
+                    "Signal": next((signal_label(s["composite"]) for s in ranked if s["ticker"] == ticker), "—"),
+                }
+                for ticker, amt in sig["target_allocations"].items()
+            ])
+            st.dataframe(alloc_df, use_container_width=True, hide_index=True)
 
-        with col_sells:
-            st.markdown("#### 🔴 Sells")
-            if not plan["sells"]:
-                st.success("Nothing to sell — current holdings already aligned.")
-            else:
-                for s in plan["sells"]:
-                    curr_score = s.get("current_score")
-                    score_str = f"Score: {curr_score:.0f}" if curr_score else ""
-                    st.markdown(f"**{s['symbol']}** — {s['reason']} {score_str}  \nValue: ${s['current_value']:,.2f}")
+        col_s, col_b, col_h = st.columns(3)
 
-        with col_buys:
-            st.markdown("#### 🟢 Buys")
-            if not plan["buys"]:
-                st.success("Nothing to buy — already fully invested in top stocks.")
-            else:
-                for b in plan["buys"]:
-                    st.markdown(f"**{b['symbol']}** {b['signal']} — {b['reason']}  \nBuy: **${b['buy_amount']:,.2f}** (have ${b['current_value']:,.2f})")
+        with col_s:
+            all_sells = sig["stops"] + sig["sells"]
+            st.markdown(f"#### 🔴 Sell ({len(all_sells)})")
+            if not all_sells:
+                st.success("Nothing to sell.")
+            for s in sig["stops"]:
+                st.error(f"**{s['symbol']}** {s['reason']}  \nValue: ${s['current_value']:,.2f} | P&L: {s['pl_pct']:+.1f}%")
+            for s in sig["sells"]:
+                st.warning(f"**{s['symbol']}** {s['reason']}  \nValue: ${s['current_value']:,.2f} | P&L: {s['pl_pct']:+.1f}%")
+
+        with col_b:
+            st.markdown(f"#### 🟢 Buy ({len(sig['buys'])})")
+            if not sig["buys"]:
+                st.success("Nothing to buy.")
+            for b in sig["buys"]:
+                st.info(f"**{b['symbol']}** {b['reason']}  \nBuy **${b['buy_amount']:,.2f}** → target ${b['target_value']:,.2f}")
+
+        with col_h:
+            st.markdown(f"#### ✅ Hold ({len(sig['holds'])})")
+            if not sig["holds"]:
+                st.caption("No positions on target yet.")
+            for h in sig["holds"]:
+                st.markdown(f"**{h['symbol']}** Score {h['composite_score']:.0f} | P&L {h['pl_pct']:+.1f}%")
 
         st.markdown("---")
-        col_exec1, col_exec2 = st.columns([1, 3])
-        with col_exec1:
-            confirm = st.checkbox("I understand this places real paper trades")
-        with col_exec2:
-            exec_btn = st.button("▶ Execute Rebalance", type="primary", disabled=not confirm)
+        col_ex1, col_ex2 = st.columns([1, 3])
+        with col_ex1:
+            confirmed = st.checkbox("Confirm — execute these paper trades")
+        with col_ex2:
+            exec_sig_btn = st.button("▶ Execute Strategy", type="primary", disabled=not confirmed)
 
-        if exec_btn:
-            with st.spinner("Placing orders..."):
+        if exec_sig_btn:
+            with st.spinner("Executing..."):
                 try:
-                    results = execute_rebalance(plan)
-                    del st.session_state["rebalance_plan"]
-                    successes = [r for r in results if r["success"]]
-                    failures = [r for r in results if not r["success"]]
-                    if successes:
-                        st.success(f"✅ {len(successes)} order(s) submitted successfully.")
-                    if failures:
-                        for f in failures:
-                            st.error(f"❌ {f['symbol']} {f['action']} failed: {f.get('error', 'unknown error')}")
+                    results = execute_signals(sig)
+                    snapshot_performance(account, positions, sig["top_tickers"])
+                    del st.session_state["strategy_signals"]
+                    ok = [r for r in results if r["success"]]
+                    fail = [r for r in results if not r["success"]]
+                    if ok:
+                        st.success(f"✅ {len(ok)} order(s) submitted.")
+                    for f in fail:
+                        st.error(f"❌ {f['symbol']} {f['action']} failed: {f.get('error', '')}")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Execution failed: {e}")
 
     st.markdown("---")
 
-    # ── Trade History ──────────────────────────────────────────────────────────
-    st.subheader("Trade History")
-
-    trade_col1, trade_col2 = st.columns([3, 1])
-    with trade_col2:
-        show_alpaca = st.toggle("Show Alpaca orders", value=True)
-
-    if show_alpaca:
-        try:
-            orders = get_recent_orders(limit=50)
-            if orders:
-                orders_df = pd.DataFrame(orders)[[
-                    "created_at", "symbol", "side", "notional", "filled_qty",
-                    "filled_avg_price", "status", "type"
-                ]]
-                orders_df.columns = ["Time", "Symbol", "Side", "$ Amount", "Filled Qty", "Fill Price", "Status", "Type"]
-
-                def _color_side(val):
-                    if str(val).lower() == "buy":
-                        return "color: #00c853; font-weight: 600"
-                    if str(val).lower() == "sell":
-                        return "color: #ff1744; font-weight: 600"
-                    return ""
-
-                _ord_styler = orders_df.style
-                _ord_color = getattr(_ord_styler, "map", getattr(_ord_styler, "applymap", None))
-                styled_orders = _ord_color(_color_side, subset=["Side"]).format({
-                    "$ Amount": lambda v: f"${v:,.2f}" if v else "—",
-                    "Fill Price": lambda v: f"${v:.2f}" if v else "—",
-                    "Filled Qty": lambda v: f"{v:.4f}" if v else "—",
-                })
-                st.dataframe(styled_orders, use_container_width=True, hide_index=True)
-            else:
-                st.info("No orders placed yet.")
-        except Exception as e:
-            st.error(f"Could not load orders: {e}")
+    # ── Current Positions ──────────────────────────────────────────────────────
+    st.subheader("Current Positions")
+    if not positions:
+        st.info("No open positions yet. Generate signals above to start.")
     else:
-        log = load_trade_log()
-        if log:
-            log_df = pd.DataFrame(log[::-1])[["timestamp", "symbol", "action", "amount", "reason", "status"]]
-            log_df.columns = ["Time", "Symbol", "Action", "Amount", "Reason", "Status"]
-            st.dataframe(log_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No trade log entries yet.")
+        pos_rows = []
+        for p in positions:
+            score = next((s["composite"] for s in ranked if s["ticker"] == p["symbol"]), None)
+            pos_rows.append({
+                "Symbol": p["symbol"],
+                "Score": f"{score:.0f}" if score else "—",
+                "Signal": signal_label(score),
+                "Shares": round(p["qty"], 4),
+                "Avg Cost": p["avg_entry_price"],
+                "Price": p["current_price"],
+                "Value": p["market_value"],
+                "P&L $": p["unrealized_pl"],
+                "P&L %": (p["unrealized_plpc"] or 0) * 100,
+                "Today %": (p["change_today"] or 0) * 100,
+            })
+        pos_df = pd.DataFrame(pos_rows)
+
+        def _color_pl(val):
+            try:
+                v = float(val)
+                if v > 0: return "color: #00c853; font-weight: 600"
+                if v < 0: return "color: #ff1744; font-weight: 600"
+            except Exception:
+                pass
+            return ""
+
+        _pos_styler = pos_df.style
+        _pos_color = getattr(_pos_styler, "map", getattr(_pos_styler, "applymap", None))
+        styled_pos = _pos_color(_color_pl, subset=["P&L $", "P&L %", "Today %"]).format({
+            "Avg Cost": "${:.2f}", "Price": "${:.2f}", "Value": "${:,.2f}",
+            "P&L $": "${:+,.2f}", "P&L %": "{:+.2f}%", "Today %": "{:+.2f}%",
+        })
+        st.dataframe(styled_pos, use_container_width=True, hide_index=True)
 
     st.markdown("---")
+
+    # ── Strategy Performance Over Time ─────────────────────────────────────────
+    st.subheader("Strategy Performance Over Time")
+    perf_history = load_performance()
+    if len(perf_history) < 2:
+        st.info("Performance history builds up as you run the strategy. Come back after a few sessions.")
+    else:
+        ph_df = pd.DataFrame(perf_history)
+        fig_perf = go.Figure()
+        fig_perf.add_trace(go.Scatter(
+            x=ph_df["date"], y=ph_df["portfolio_value"],
+            name="Portfolio Value", line=dict(color="#00c853", width=2), fill="tozeroy",
+            fillcolor="rgba(0,200,83,0.08)",
+        ))
+        fig_perf.update_layout(title="Portfolio Value Over Time", yaxis_title="Value ($)", height=350)
+        st.plotly_chart(fig_perf, use_container_width=True)
+
+        start_val = perf_history[0]["portfolio_value"]
+        curr_val = perf_history[-1]["portfolio_value"]
+        total_ret = (curr_val / start_val - 1) * 100 if start_val > 0 else 0
+        st.caption(f"Starting value: ${start_val:,.2f} | Current: ${curr_val:,.2f} | Total return: {total_ret:+.1f}%")
+
+    st.markdown("---")
+
+    # ── Order History ──────────────────────────────────────────────────────────
+    st.subheader("Order History")
+    try:
+        orders = get_recent_orders(limit=50)
+        if orders:
+            orders_df = pd.DataFrame(orders)[["created_at", "symbol", "side", "notional", "filled_qty", "filled_avg_price", "status"]]
+            orders_df.columns = ["Time", "Symbol", "Side", "$ Amount", "Filled Qty", "Fill Price", "Status"]
+
+            def _color_side(val):
+                if str(val).lower() == "buy": return "color: #00c853; font-weight: 600"
+                if str(val).lower() == "sell": return "color: #ff1744; font-weight: 600"
+                return ""
+
+            _ord_styler = orders_df.style
+            _ord_color = getattr(_ord_styler, "map", getattr(_ord_styler, "applymap", None))
+            styled_orders = _ord_color(_color_side, subset=["Side"]).format({
+                "$ Amount": lambda v: f"${v:,.2f}" if v else "—",
+                "Fill Price": lambda v: f"${v:.2f}" if v else "—",
+                "Filled Qty": lambda v: f"{v:.4f}" if v else "—",
+            })
+            st.dataframe(styled_orders, use_container_width=True, hide_index=True)
+        else:
+            st.info("No orders yet.")
+    except Exception as e:
+        st.error(f"Could not load orders: {e}")
 
     # ── Manual Order ───────────────────────────────────────────────────────────
     with st.expander("🔧 Manual Order"):
@@ -975,7 +1020,7 @@ with tab_trade:
             man_btn = st.button("Place Order", type="primary", use_container_width=True)
         if man_btn:
             try:
-                result = place_market_order(man_ticker, man_side, man_amount)  # noqa: F821
+                result = place_market_order(man_ticker, man_side, man_amount)
                 st.success(f"Order submitted: {man_side.upper()} ${man_amount:,.2f} of {man_ticker} | ID: {result['id']}")
             except Exception as e:
                 st.error(f"Order failed: {e}")
