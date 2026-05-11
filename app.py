@@ -1,5 +1,6 @@
 import os
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
@@ -181,6 +182,34 @@ st.markdown("""
     hr { border-color: #1c2033 !important; }
 </style>
 """, unsafe_allow_html=True)
+
+# Inject JS to remove artifact text (e.g. "bar") that bleeds into expander labels
+components.html("""
+<script>
+function removeArtifacts() {
+    // Hide any short mystery text (<=6 chars) sitting inside expander summary elements
+    document.querySelectorAll('[data-testid="stExpander"] summary').forEach(function(summary) {
+        summary.querySelectorAll('p, span').forEach(function(el) {
+            var t = el.textContent.trim();
+            if (t.length > 0 && t.length <= 6 && el.children.length === 0) {
+                el.style.cssText = 'display:none!important;font-size:0!important;color:transparent!important;';
+            }
+        });
+    });
+    // Also hide any standalone element whose sole text is "bar" or "sidebar" anywhere on page
+    document.querySelectorAll('p, span').forEach(function(el) {
+        var t = el.textContent.trim();
+        if ((t === 'bar' || t === 'sidebar') && el.children.length === 0) {
+            el.style.cssText = 'display:none!important;';
+        }
+    });
+}
+removeArtifacts();
+// Re-run after Streamlit re-renders
+var obs = new MutationObserver(function() { removeArtifacts(); });
+obs.observe(document.body, {childList: true, subtree: true});
+</script>
+""", height=0)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
