@@ -22,11 +22,12 @@ def _get_secret(key: str) -> str:
 
 def get_client() -> TradingClient:
     global _client
+    api_key = _get_secret("ALPACA_API_KEY")
+    secret_key = _get_secret("ALPACA_SECRET_KEY")
+    if not api_key or not secret_key or "your_alpaca" in api_key:
+        raise ValueError("Alpaca API keys not configured. Add ALPACA_API_KEY and ALPACA_SECRET_KEY to Streamlit Secrets.")
+    # Always rebuild if keys changed
     if _client is None:
-        api_key = _get_secret("ALPACA_API_KEY")
-        secret_key = _get_secret("ALPACA_SECRET_KEY")
-        if not api_key or not secret_key or "your_alpaca" in api_key:
-            raise ValueError("Alpaca API keys not configured. Add ALPACA_API_KEY and ALPACA_SECRET_KEY to Streamlit Secrets.")
         _client = TradingClient(api_key, secret_key, paper=True)
     return _client
 

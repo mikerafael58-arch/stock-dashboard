@@ -793,11 +793,19 @@ with tab_trade:
 
     # ── Debug info ─────────────────────────────────────────────────────────────
     with st.expander("🔧 Debug — Key Status"):
+        import requests as _req
         ak = _st_secret("ALPACA_API_KEY")
         sk = _st_secret("ALPACA_SECRET_KEY")
         st.write(f"ALPACA_API_KEY: `{ak[:6]}...{ak[-4:]}` (length {len(ak)})")
         st.write(f"ALPACA_SECRET_KEY: `{sk[:4]}...{sk[-4:]}` (length {len(sk)})")
         st.write(f"Source: {'st.secrets' if hasattr(st, 'secrets') and st.secrets.get('ALPACA_API_KEY') else 'os.getenv'}")
+        if st.button("Test connection directly"):
+            resp = _req.get(
+                "https://paper-api.alpaca.markets/v2/account",
+                headers={"APCA-API-KEY-ID": ak, "APCA-API-SECRET-KEY": sk},
+            )
+            st.write(f"HTTP Status: {resp.status_code}")
+            st.write(f"Response: {resp.text[:300]}")
 
     # ── Live account data ──────────────────────────────────────────────────────
     try:
