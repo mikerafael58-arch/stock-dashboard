@@ -390,7 +390,8 @@ with st.spinner("Fetching market data..."):
         st.stop()
 
 if not ranked:
-    st.warning("No data returned. Check your tickers and try again.")
+    st.error("No data returned from Yahoo Finance. This usually means yfinance is temporarily rate-limited or Yahoo Finance changed their API.")
+    st.info("Try clicking **Refresh Data** in the sidebar to retry. If it keeps failing, wait a few minutes and try again.")
     st.stop()
 
 # Auto-save snapshot when data loads
